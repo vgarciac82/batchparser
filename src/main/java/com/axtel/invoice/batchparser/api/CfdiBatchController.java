@@ -10,11 +10,11 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.angelsoft.sai.service.CfdiBatchService;
 import com.axtel.invoice.batchparser.dto.BatchResponse;
+import com.axtel.invoice.batchparser.service.CfdiBatchService;
 
 @RestController
-@RequestMapping("/api/cfdi")
+@RequestMapping("/proc")
 public class CfdiBatchController {
 
 	private static final Logger log = LoggerFactory.getLogger(CfdiBatchController.class);
