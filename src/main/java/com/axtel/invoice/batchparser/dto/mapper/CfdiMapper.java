@@ -131,7 +131,7 @@ public class CfdiMapper {
 
 	// ===== Helpers de mapeo =====
 
-	private static String extractUUID(Comprobante c) {
+	public static String extractUUID(Comprobante c) {
 		if (c.getComplemento() != null && c.getComplemento().getAny() != null) {
 			for (Object o : c.getComplemento().getAny()) {
 				Object val = (o instanceof JAXBElement) ? ((JAXBElement<?>) o).getValue() : o;
