@@ -41,17 +41,37 @@ public class SatCfdiStatusClientImpl implements SatCfdiStatusClient {
 		String cacheKey = expr.toUpperCase(Locale.ROOT);
 
 		SatConsultaResult cached = cache.getIfPresent(cacheKey);
-		if (cached != null)
+		if (cached != null) {
+			if (log.isTraceEnabled()) {
+				log.trace("SAT cache hit para expr={} → estado={}", expr, cached.estado());
+			}
 			return cached;
+		}
 
 		String requestXml = buildSoapRequest(expr);
+
+		if (log.isTraceEnabled()) {
+			log.trace("SAT consulta expr={}", expr);
+			log.trace("SAT request XML:\n{}", requestXml);
+		}
 
 		StringWriter sw = new StringWriter(1024);
 		try {
 			ws.sendSourceAndReceiveToResult(new StreamSource(new StringReader(requestXml)), setSoapAction(SOAP_ACTION),
 					new StreamResult(sw));
 			String respXml = sw.toString();
+
+			if (log.isTraceEnabled()) {
+				log.trace("SAT raw response XML:\n{}", respXml);
+			}
+
 			SatConsultaResult parsed = parseResponse(respXml);
+
+			if (log.isTraceEnabled()) {
+				log.trace("SAT parsed estado={}, esCancelable={}, estatusCancelacion={}", parsed.estado(),
+						parsed.esCancelable(), parsed.estatusCancelacion());
+			}
+
 			cache.put(cacheKey, parsed);
 			return parsed;
 		} catch (Exception e) {
@@ -70,13 +90,9 @@ public class SatCfdiStatusClientImpl implements SatCfdiStatusClient {
 
 	private static String buildSoapRequest(String expresionImpresa) {
 		String body = """
-				<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
-				  <s:Body>
 				    <Consulta xmlns="http://tempuri.org/">
 				      <expresionImpresa>%s</expresionImpresa>
 				    </Consulta>
-				  </s:Body>
-				</s:Envelope>
 				""".formatted(escapeXml(expresionImpresa));
 		return body;
 	}
@@ -89,27 +105,85 @@ public class SatCfdiStatusClientImpl implements SatCfdiStatusClient {
 		if (xml == null || xml.isBlank()) {
 			return new SatConsultaResult(SatEstado.DESCONOCIDO, null, null, null);
 		}
+
 		XPath xp = XPathFactory.newInstance().newXPath();
+		org.xml.sax.InputSource src = new org.xml.sax.InputSource(new StringReader(xml));
+
+		// 1) Intento original: atributos en ConsultaResult dentro de Envelope
 		String estado = (String) xp.evaluate(
 				"/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/@Estado",
-				new org.xml.sax.InputSource(new StringReader(xml)), XPathConstants.STRING);
+				src, XPathConstants.STRING);
+
+		// Reusar el InputSource: crear uno nuevo por cada evaluate
+		src = new org.xml.sax.InputSource(new StringReader(xml));
 		String esCancelable = (String) xp.evaluate(
 				"/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/@EsCancelable",
-				new org.xml.sax.InputSource(new StringReader(xml)), XPathConstants.STRING);
+				src, XPathConstants.STRING);
+
+		src = new org.xml.sax.InputSource(new StringReader(xml));
 		String estatusCancel = (String) xp.evaluate(
 				"/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/@EstatusCancelacion",
-				new org.xml.sax.InputSource(new StringReader(xml)), XPathConstants.STRING);
+				src, XPathConstants.STRING);
 
-		SatEstado st = switch (estado == null ? "" : estado.trim().toUpperCase(Locale.ROOT)) {
+		// 2) Si no vino Envelope/atributos, intentar elementos hijos (con o sin
+		// Envelope)
+		if (isBlank(estado)) {
+			src = new org.xml.sax.InputSource(new StringReader(xml));
+			estado = (String) xp.evaluate(
+					"/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/*[local-name()='Estado']/text()",
+					src, XPathConstants.STRING);
+			if (isBlank(estado)) {
+				src = new org.xml.sax.InputSource(new StringReader(xml));
+				estado = (String) xp.evaluate(
+						"/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/*[local-name()='Estado']/text()",
+						src, XPathConstants.STRING);
+			}
+		}
+
+		if (isBlank(esCancelable)) {
+			src = new org.xml.sax.InputSource(new StringReader(xml));
+			esCancelable = (String) xp.evaluate(
+					"/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/*[local-name()='EsCancelable']/text()",
+					src, XPathConstants.STRING);
+			if (isBlank(esCancelable)) {
+				src = new org.xml.sax.InputSource(new StringReader(xml));
+				esCancelable = (String) xp.evaluate(
+						"/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/*[local-name()='EsCancelable']/text()",
+						src, XPathConstants.STRING);
+			}
+		}
+
+		if (isBlank(estatusCancel)) {
+			src = new org.xml.sax.InputSource(new StringReader(xml));
+			estatusCancel = (String) xp.evaluate(
+					"/*[local-name()='Envelope']/*[local-name()='Body']/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/*[local-name()='EstatusCancelacion']/text()",
+					src, XPathConstants.STRING);
+			if (isBlank(estatusCancel)) {
+				src = new org.xml.sax.InputSource(new StringReader(xml));
+				estatusCancel = (String) xp.evaluate(
+						"/*[local-name()='ConsultaResponse']/*[local-name()='ConsultaResult']/*[local-name()='EstatusCancelacion']/text()",
+						src, XPathConstants.STRING);
+			}
+		}
+
+		// Normalización de estado
+		String normEstado = (estado == null ? "" : estado.trim()).toUpperCase(Locale.ROOT);
+		SatEstado st = switch (normEstado) {
 		case "VIGENTE" -> SatEstado.VIGENTE;
 		case "CANCELADO" -> SatEstado.CANCELADO;
 		case "NO ENCONTRADO" -> SatEstado.NO_ENCONTRADO;
 		default -> SatEstado.DESCONOCIDO;
 		};
+
 		return new SatConsultaResult(st, emptyToNull(esCancelable), emptyToNull(estatusCancel), xml);
 	}
 
-	private static String emptyToNull(String s) {
-		return (s == null || s.isBlank()) ? null : s;
+	private static boolean isBlank(String s) {
+		return s == null || s.trim().isEmpty();
 	}
+
+	private static String emptyToNull(String s) {
+		return (s == null || s.isBlank()) ? null : s.trim();
+	}
+
 }
