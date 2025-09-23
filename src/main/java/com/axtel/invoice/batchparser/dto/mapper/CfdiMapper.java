@@ -231,8 +231,8 @@ public class CfdiMapper {
 
 	private static String nombreImpuesto(String codigo) {
 		return switch (codigo) {
-		case "001" -> "ISR";
-		case "002" -> "IVA";
+		case "001" -> "001";
+		case "002" -> "002";
 		case "003" -> "IEPS";
 		default -> codigo;
 		};
