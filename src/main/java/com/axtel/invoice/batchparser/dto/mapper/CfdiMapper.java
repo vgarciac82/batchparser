@@ -19,6 +19,7 @@ import javax.xml.datatype.XMLGregorianCalendar;
 
 import com.angelsoft.sat.cfd._40.Comprobante;
 import com.angelsoft.sat.common.TimbreFiscalDigital11.TimbreFiscalDigital;
+import com.angelsoft.sat.common.implocal10.ImpuestosLocales;
 import com.axtel.invoice.batchparser.dto.CfdiConceptoDTO;
 import com.axtel.invoice.batchparser.dto.CfdiConceptoImpuestoDTO;
 import com.axtel.invoice.batchparser.dto.CfdiParsedDTO;
@@ -59,16 +60,15 @@ public class CfdiMapper {
 		h.cEstatusSAT = null;
 		h.serie = ns(c.getSerie());
 		h.folio = ns(c.getFolio());
-		h.cCodigoPostalEmisor = ns(c.getLugarExpedicion()); // CP expedición
+		h.cCodigoPostalEmisor = ns(c.getLugarExpedicion());
 
-		// detalle de impuestos (encabezado) + otros impuestos + IVA total
 		TaxAgg agg = aggregateTaxes(c);
 		h.mImporteIva = agg.iva;
 		h.mOtrosImpuestos = agg.otrosTraslados;
 
-		out.header = h;
-		out.impuestos = toPagoFacturaImpuestos(cTipoPago, nFolioPago, h.cFactura, agg);
-		out.retenciones = toPagoFacturaRetenciones(cTipoPago, nFolioPago, h.cFactura, agg);
+		out.setHeader(h);
+		out.setImpuestos(toPagoFacturaImpuestos(cTipoPago, nFolioPago, h.cFactura, agg));
+		out.setRetenciones(toPagoFacturaRetenciones(cTipoPago, nFolioPago, h.cFactura, agg));
 
 		// tipo de cambio
 		if (c.getMoneda() != null && !"MXN".equalsIgnoreCase(c.getMoneda().value()) && c.getTipoCambio() != null) {
@@ -77,11 +77,10 @@ public class CfdiMapper {
 			tc.nFolioPago = nFolioPago;
 			tc.cUUID = h.cFactura;
 			tc.cMoneda = c.getMoneda().value();
-			// mImporteConversion: Total * TipoCambio
 			BigDecimal t = nn(c.getTotal());
 			BigDecimal tcambio = c.getTipoCambio();
 			tc.mImporteConversion = (t != null && tcambio != null) ? t.multiply(tcambio) : null;
-			out.tipoCambio = tc;
+			out.setTipoCambio(tc);
 		}
 
 		// conceptos + impuestos por concepto
@@ -95,7 +94,7 @@ public class CfdiMapper {
 				cd.cDescripcion = ns(con.getDescripcion());
 				cd.mValorUnitario = nn(con.getValorUnitario());
 				cd.mImporte = nn(con.getImporte());
-				out.conceptos.add(cd);
+				out.getConceptos().add(cd);
 
 				if (con.getImpuestos() != null) {
 					if (con.getImpuestos().getTraslados() != null
@@ -107,7 +106,7 @@ public class CfdiMapper {
 							ci.nTasaOCuota = t.getTasaOCuota();
 							ci.mBase = nn(t.getBase());
 							ci.mImporte = nn(t.getImporte());
-							out.conceptoImpuestos.add(ci);
+							out.getConceptoImpuestos().add(ci);
 						});
 					}
 					if (con.getImpuestos().getRetenciones() != null
@@ -115,11 +114,11 @@ public class CfdiMapper {
 						con.getImpuestos().getRetenciones().getRetencion().forEach(r -> {
 							CfdiConceptoImpuestoDTO ci = new CfdiConceptoImpuestoDTO();
 							ci.cImpuesto = ns(r.getImpuesto().value());
-							ci.cTipoFactor = null; // en retención por concepto no aplica tipoFactor
+							ci.cTipoFactor = null;
 							ci.nTasaOCuota = r.getTasaOCuota();
 							ci.mBase = nn(r.getBase());
 							ci.mImporte = nn(r.getImporte());
-							out.conceptoImpuestos.add(ci);
+							out.getConceptoImpuestos().add(ci);
 						});
 					}
 				}
@@ -186,14 +185,13 @@ public class CfdiMapper {
 	private static class TaxAgg {
 		BigDecimal iva = BigDecimal.ZERO;
 		BigDecimal otrosTraslados = BigDecimal.ZERO;
-		// clave: impuesto|tipoFactor|tasa -> [base, importe]
 		Map<String, BigDecimal[]> traslados = new LinkedHashMap<>();
-		// clave: impuesto -> importe
 		Map<String, BigDecimal> retenciones = new LinkedHashMap<>();
 	}
 
 	private static TaxAgg aggregateTaxes(Comprobante c) {
 		TaxAgg a = new TaxAgg();
+
 		if (c.getConceptos() != null && c.getConceptos().getConcepto() != null) {
 			c.getConceptos().getConcepto().forEach(con -> {
 				if (con.getImpuestos() != null && con.getImpuestos().getTraslados() != null
@@ -226,6 +224,23 @@ public class CfdiMapper {
 				}
 			});
 		}
+
+		if (c.getComplemento() != null && c.getComplemento().getAny() != null) {
+			for (Object any : c.getComplemento().getAny()) {
+				if (any instanceof ImpuestosLocales il) {
+					if (il.getRetencionesLocalesAndTrasladosLocales() != null) {
+						il.getRetencionesLocalesAndTrasladosLocales().forEach(obj -> {
+							if (obj instanceof ImpuestosLocales.RetencionesLocales rl) {
+								String concepto = rl.getImpLocRetenido();
+								BigDecimal importe = rl.getImporte() != null ? rl.getImporte() : BigDecimal.ZERO;
+								a.retenciones.merge(concepto, importe, BigDecimal::add);
+							}
+						});
+					}
+				}
+			}
+		}
+
 		return a;
 	}
 
@@ -269,11 +284,11 @@ public class CfdiMapper {
 		List<PagoFacturaRetencionDTO> list = new ArrayList<>();
 		for (Map.Entry<String, BigDecimal> e : agg.retenciones.entrySet()) {
 			PagoFacturaRetencionDTO r = new PagoFacturaRetencionDTO();
-			r.cTipoPago = cTipoPago;
-			r.nFolioPago = nFolioPago;
-			r.uuid = uuid;
-			r.cNombreRetencion = nombreImpuesto(e.getKey());
-			r.mImporteRetencion = e.getValue();
+			r.setcTipoPago(cTipoPago);
+			r.setnFolioPago(nFolioPago);
+			r.setUuid(uuid);
+			r.setcNombreRetencion(nombreImpuesto(e.getKey()));
+			r.setmImporteRetencion(e.getValue());
 			list.add(r);
 		}
 		return list;

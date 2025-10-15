@@ -339,7 +339,7 @@ public class CfdiBatchService {
 	// ===== Parse CFDI / UUID =====
 	private Comprobante parseComprobante(byte[] xmlBytes) throws Exception {
 		try (var in = new ByteArrayInputStream(xmlBytes)) {
-			return (Comprobante) (new CFDv40(in, "com.angelsoft.sat.common.TimbreFiscalDigital11"))
+			return (Comprobante) (new CFDv40(in, "com.angelsoft.sat.common.TimbreFiscalDigital11", "com.angelsoft.sat.common.implocal10"))
 					.getComprobanteDocument();
 		}
 	}
