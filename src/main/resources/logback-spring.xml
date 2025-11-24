@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!-- Ruta del archivo de log -->
+  <property name="LOG_FILE" value="/var/log/services/invoice_parser.log"/>
+
+  <!-- Appender de archivo con rotación por día y por tamaño -->
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_FILE}</file>
+    <append>true</append>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+      <immediateFlush>true</immediateFlush>
+    </encoder>
+
+    <!-- Rotación diaria + por tamaño (requiere logback-classic 1.2.x) -->
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <!-- Genera /var/log/services/invoice_parser.2025-10-16.0.log.gz, etc. -->
+      <fileNamePattern>/var/log/services/invoice_parser.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <maxFileSize>50MB</maxFileSize>
+      <maxHistory>30</maxHistory>
+      <totalSizeCap>3GB</totalSizeCap>
+      <cleanHistoryOnStart>true</cleanHistoryOnStart>
+    </rollingPolicy>
+  </appender>
+
+  <!-- Niveles solicitados -->
+  <logger name="org.springframework.ws" level="INFO"/>
+  <logger name="org.springframework.ws.client.MessageTracing" level="INFO"/>
+  <logger name="org.springframework.ws.transport.http" level="INFO"/>
+  <logger name="org.apache.http" level="INFO"/>
+  <logger name="org.apache.http.headers" level="INFO"/>
+  <logger name="org.apache.http.wire" level="INFO"/>
+
+  <!-- Nivel global -->
+  <root level="INFO">
+    <appender-ref ref="FILE"/>
+  </root>
+</configuration>
