@@ -12,7 +12,6 @@ public class CfdiParsedDTO {
 	private List<PagoFacturaRetencionDTO> retenciones = new ArrayList<>();
 	private PagoFacturaTipoCambioDTO tipoCambio; // opcional
 	private List<CfdiConceptoDTO> conceptos = new ArrayList<>();
-	private List<CfdiConceptoImpuestoDTO> conceptoImpuestos = new ArrayList<>();
 
 	public PagoFacturaDTO getHeader() {
 		return header;
@@ -54,19 +53,10 @@ public class CfdiParsedDTO {
 		this.conceptos = conceptos;
 	}
 
-	public List<CfdiConceptoImpuestoDTO> getConceptoImpuestos() {
-		return conceptoImpuestos;
-	}
-
-	public void setConceptoImpuestos(List<CfdiConceptoImpuestoDTO> conceptoImpuestos) {
-		this.conceptoImpuestos = conceptoImpuestos;
-	}
-
 	@Override
 	public String toString() {
 		return "CfdiParsedDTO [header=" + header + ", impuestos=" + impuestos + ", retenciones=" + retenciones
-				+ ", tipoCambio=" + tipoCambio + ", conceptos=" + conceptos + ", conceptoImpuestos=" + conceptoImpuestos
-				+ "]";
+				+ ", tipoCambio=" + tipoCambio + ", conceptos=" + conceptos + "]";
 	}
 
 }

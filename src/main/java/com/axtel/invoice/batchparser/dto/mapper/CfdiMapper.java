@@ -94,8 +94,8 @@ public class CfdiMapper {
 				cd.cDescripcion = ns(con.getDescripcion());
 				cd.mValorUnitario = nn(con.getValorUnitario());
 				cd.mImporte = nn(con.getImporte());
-				out.getConceptos().add(cd);
-
+				
+				// Procesar impuestos del concepto
 				if (con.getImpuestos() != null) {
 					if (con.getImpuestos().getTraslados() != null
 							&& con.getImpuestos().getTraslados().getTraslado() != null) {
@@ -106,7 +106,7 @@ public class CfdiMapper {
 							ci.nTasaOCuota = t.getTasaOCuota();
 							ci.mBase = nn(t.getBase());
 							ci.mImporte = nn(t.getImporte());
-							out.getConceptoImpuestos().add(ci);
+							cd.getConceptoImpuestos().add(ci);
 						});
 					}
 					if (con.getImpuestos().getRetenciones() != null
@@ -118,10 +118,12 @@ public class CfdiMapper {
 							ci.nTasaOCuota = r.getTasaOCuota();
 							ci.mBase = nn(r.getBase());
 							ci.mImporte = nn(r.getImporte());
-							out.getConceptoImpuestos().add(ci);
+							cd.getConceptoRetenciones().add(ci);
 						});
 					}
 				}
+				
+				out.getConceptos().add(cd);
 			});
 		}
 
