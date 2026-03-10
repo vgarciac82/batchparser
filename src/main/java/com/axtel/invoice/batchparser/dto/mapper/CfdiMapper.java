@@ -104,8 +104,8 @@ public class CfdiMapper {
 							ci.cImpuesto = ns(t.getImpuesto().value()); // "001","002","003"
 							ci.cTipoFactor = t.getTipoFactor() != null ? t.getTipoFactor().value() : null;
 							ci.nTasaOCuota = t.getTasaOCuota();
-							ci.mBase = nn(t.getBase());
-							ci.mImporte = nn(t.getImporte());
+							ci.mBase = money(t.getBase());
+							ci.mImporte = money(t.getImporte());
 							cd.getConceptoImpuestos().add(ci);
 						});
 					}
@@ -116,8 +116,8 @@ public class CfdiMapper {
 							ci.cImpuesto = ns(r.getImpuesto().value());
 							ci.cTipoFactor = null;
 							ci.nTasaOCuota = r.getTasaOCuota();
-							ci.mBase = nn(r.getBase());
-							ci.mImporte = nn(r.getImporte());
+							ci.mBase = money(r.getBase());
+							ci.mImporte = money(r.getImporte());
 							cd.getConceptoRetenciones().add(ci);
 						});
 					}
@@ -182,6 +182,10 @@ public class CfdiMapper {
 
 	private static BigDecimal nn(BigDecimal v) {
 		return v == null ? null : v;
+	}
+	
+	private static BigDecimal money(BigDecimal v) {
+		return v == null ? null : v.setScale(2, RoundingMode.HALF_UP);
 	}
 
 	private static class TaxAgg {
